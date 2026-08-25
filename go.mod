@@ -1,0 +1,3 @@
+module cam-recorder
+
+go 1.27.0

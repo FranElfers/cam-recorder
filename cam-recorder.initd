@@ -1,0 +1,27 @@
+#!/sbin/openrc-run
+
+name="cam-recorder"
+description="Tapo C200 RTSP Recorder Service"
+command="/usr/local/bin/cam-recorder"
+command_background="yes"
+pidfile="/run/${name}.pid"
+output_log="/var/log/${name}.log"
+error_log="/var/log/${name}.err"
+
+# Ensure we run from a directory where config.json is present,
+# or better yet, make main.go look at /etc/cam-recorder/config.json
+# Wait, main.go expects config.json in the current working directory.
+# Let's use directory attribute in OpenRC
+directory="/etc/cam-recorder"
+
+depend() {
+    need net
+    use logger
+}
+
+start_pre() {
+    checkpath -d -m 0755 -o root:root /var/lib/cam-recorder
+    checkpath -d -m 0755 -o root:root /var/lib/cam-recorder/videos
+    checkpath -d -m 0755 -o root:root /var/lib/cam-recorder/hls
+    checkpath -d -m 0755 -o root:root /etc/cam-recorder
+}
