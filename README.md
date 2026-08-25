@@ -69,6 +69,17 @@ Do these steps to operate the service:
 3.  Go to the web interface. Use the IP address of the server and the port from the configuration file.
     `http://<server-ip>:8080/`
 
+## Service logs
+
+You can look at the service logs to troubleshoot problems. The system saves the logs in these files:
+*   Standard messages: `/var/log/cam-recorder.log`
+*   Error messages: `/var/log/cam-recorder.err`
+
+To see the live error messages, use this command:
+```shell
+tail -f /var/log/cam-recorder.err
+```
+
 ## Web interface features
 
 The web interface lets you do these tasks:

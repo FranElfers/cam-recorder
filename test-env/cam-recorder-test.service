@@ -1,0 +1,18 @@
+[Unit]
+Description=Cam Recorder Test Service
+After=network.target
+
+[Service]
+Type=simple
+# Run in the test-env directory so it picks up the test config.json
+WorkingDirectory=/home/fran/Projects/cam-recorder/test-env
+# Inject the mock ffmpeg wrapper into the PATH
+Environment="PATH=/home/fran/Projects/cam-recorder/test-env/bin:/usr/local/bin:/usr/bin:/bin"
+ExecStart=/home/fran/Projects/cam-recorder/cam-recorder
+Restart=always
+# Standard output and error to journald
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
