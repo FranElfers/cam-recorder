@@ -16,31 +16,11 @@ Do these steps to install the software:
 
 1.  Compile the software.
     ```shell
-    go build -o cam-recorder main.go
+    make
     ```
-2.  Copy the compiled file to the system binaries directory.
+2.  Install the compiled binary, configuration, and service files.
     ```shell
-    sudo cp cam-recorder /usr/local/bin/
-    ```
-3.  Make a directory for the configuration file.
-    ```shell
-    sudo mkdir -p /etc/cam-recorder
-    ```
-4.  Copy the configuration file to the new directory.
-    ```shell
-    sudo cp config.json /etc/cam-recorder/
-    ```
-5.  Copy the OpenRC service file to the system services directory.
-    ```shell
-    sudo cp cam-recorder.initd /etc/init.d/cam-recorder
-    ```
-6.  Make the service file executable.
-    ```shell
-    sudo chmod +x /etc/init.d/cam-recorder
-    ```
-7.  Add the service to the default runlevel.
-    ```shell
-    sudo rc-update add cam-recorder default
+    sudo make install
     ```
 
 ## Configuration
