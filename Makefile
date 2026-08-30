@@ -3,14 +3,14 @@
 all: build
 
 build:
-	go build -o cam-recorder main.go
+	CGO_ENABLED=0 go build -o cam-recorder main.go
 
 install: build
-	cp cam-recorder /usr/local/bin/
-	mkdir -p /etc/cam-recorder
-	cp config.json /etc/cam-recorder/
-	cp cam-recorder.initd /etc/init.d/cam-recorder
-	chmod +x /etc/init.d/cam-recorder
+	install -d /usr/local/bin
+	install -m 755 cam-recorder /usr/local/bin/
+	install -d /etc/cam-recorder
+	install -m 644 config.json /etc/cam-recorder/
+	install -m 755 cam-recorder.initd /etc/init.d/cam-recorder
 	rc-update add cam-recorder default
 
 uninstall:
