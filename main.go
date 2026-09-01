@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -77,6 +76,7 @@ func recordContinuously() {
 		log.Println("Starting recording...")
 		// Saving to MP4 directly.
 		cmd := exec.Command("ffmpeg",
+			"-nostdin",
 			"-hwaccel", "vaapi",
 			"-hwaccel_device", config.HWAccelDevice,
 			"-rtsp_transport", "tcp",
@@ -268,13 +268,21 @@ func handleKeepalive(w http.ResponseWriter, r *http.Request) {
 		log.Println("Starting HLS stream for viewers...")
 
 		hlsPath := filepath.Join(config.HLSOutputDir, "stream.m3u8")
+		hlsRTSP := strings.Replace(config.RTSPURL, "stream1", "stream2", 1)
+
+		// Clean up any old segments before starting
+		files, _ := filepath.Glob(filepath.Join(config.HLSOutputDir, "*"))
+		for _, f := range files {
+			os.Remove(f)
+		}
 
 		hlsCmd = exec.Command("ffmpeg",
+			"-nostdin",
 			"-hwaccel", "vaapi",
 			"-hwaccel_device", config.HWAccelDevice,
 			"-hwaccel_output_format", "vaapi",
 			"-rtsp_transport", "tcp",
-			"-i", config.RTSPURL,
+			"-i", hlsRTSP,
 			"-c:v", "h264_vaapi",
 			"-b:v", "2M",
 			"-c:a", "aac",
@@ -285,18 +293,32 @@ func handleKeepalive(w http.ResponseWriter, r *http.Request) {
 			hlsPath,
 		)
 
+		hlsCmd.Stdout = os.Stdout
+		hlsCmd.Stderr = os.Stderr
+
 		if err := hlsCmd.Start(); err != nil {
 			log.Printf("Failed to start HLS: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		hlsRunning = true
+
+		go func() {
+			err := hlsCmd.Wait()
+			log.Printf("HLS process exited: %v", err)
+			hlsMu.Lock()
+			hlsRunning = false
+			hlsMu.Unlock()
+		}()
 	}
 
 	w.WriteHeader(http.StatusOK)
 }
 
 func handleHLS(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	http.StripPrefix("/hls/", http.FileServer(http.Dir(config.HLSOutputDir))).ServeHTTP(w, r)
 }
 
@@ -306,95 +328,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tmpl := `<!DOCTYPE html>
-<html>
-<head>
-	<title>Cam Recorder</title>
-	<style>
-		body { font-family: sans-serif; margin: 20px; }
-		#video-player { width: 100%; max-width: 800px; }
-		.container { display: flex; gap: 20px; }
-		.col { flex: 1; }
-		ul { list-style-type: none; padding: 0; }
-		li { margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; cursor: pointer; }
-		li:hover { background-color: #f0f0f0; }
-	</style>
-	<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-</head>
-<body>
-	<h1>Tapo C200 Cam Recorder</h1>
-	<div class="container">
-		<div class="col">
-			<h2>Live Feed</h2>
-			<video id="live-video" controls autoplay muted style="width:100%; max-width:800px;"></video>
-			<h2>System Stats</h2>
-			<div id="stats">Loading...</div>
-		</div>
-		<div class="col">
-			<h2>Recordings</h2>
-			<div id="recordings">Loading...</div>
-			
-			<div id="playback-section" style="display:none; margin-top:20px;">
-				<h3>Playback</h3>
-				<video id="playback-video" controls style="width:100%;"></video>
-				<br>
-				<a id="download-btn" href="#" download><button>Download Video</button></a>
-			</div>
-		</div>
-	</div>
-
-	<script>
-		setInterval(() => fetch('/api/keepalive'), 5000);
-		fetch('/api/keepalive').then(() => {
-			setTimeout(() => {
-				const video = document.getElementById('live-video');
-				const videoSrc = '/hls/stream.m3u8';
-				if (Hls.isSupported()) {
-					const hls = new Hls();
-					hls.loadSource(videoSrc);
-					hls.attachMedia(video);
-				} else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-					video.src = videoSrc;
-				}
-			}, 3000);
-		});
-
-		function updateStats() {
-			fetch('/api/stats').then(r => r.json()).then(data => {
-				document.getElementById('stats').innerHTML = 
-					'<p>Uptime: ' + data.uptime + '</p>' +
-					'<p>Free Disk: ' + data.free_disk_pct.toFixed(2) + '%</p>' +
-					'<p>RTSP URL: ' + data.rtsp_url + '</p>' +
-					'<p>Retention Days: ' + data.retention_days + '</p>';
-			});
-		}
-		setInterval(updateStats, 10000);
-		updateStats();
-
-		function updateRecordings() {
-			fetch('/videos').then(r => r.json()).then(files => {
-				const list = document.getElementById('recordings');
-				list.innerHTML = '<ul>' + files.map(f => 
-					'<li onclick="playVideo(\'' + f.name + '\')">' + f.name + ' (' + f.size.toFixed(2) + ' MB)</li>'
-				).join('') + '</ul>';
-			});
-		}
-		updateRecordings();
-
-		function playVideo(filename) {
-			const sec = document.getElementById('playback-section');
-			const vid = document.getElementById('playback-video');
-			const btn = document.getElementById('download-btn');
-			
-			sec.style.display = 'block';
-			vid.src = '/download/' + filename;
-			btn.href = '/download/' + filename;
-			vid.play();
-		}
-	</script>
-</body>
-</html>`
-	fmt.Fprint(w, tmpl)
+	http.ServeFile(w, r, "index.html")
 }
 
 func handleVideos(w http.ResponseWriter, r *http.Request) {
@@ -433,12 +367,31 @@ func handleVideos(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(list)
 }
 
+func getUsedSpaceMB(path string) float64 {
+	var size int64
+	files, err := os.ReadDir(path)
+	if err != nil {
+		return 0
+	}
+	for _, f := range files {
+		if !strings.HasSuffix(f.Name(), ".mp4") {
+			continue
+		}
+		info, err := f.Info()
+		if err == nil {
+			size += info.Size()
+		}
+	}
+	return float64(size) / 1024 / 1024
+}
+
 func handleStats(w http.ResponseWriter, r *http.Request) {
 	stats := map[string]interface{}{
 		"uptime":         time.Since(startTime).String(),
 		"free_disk_pct":  getFreeDiskPct(config.OutputDir),
 		"rtsp_url":       config.RTSPURL,
 		"retention_days": config.RetentionDays,
+		"used_space_mb":  getUsedSpaceMB(config.OutputDir),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Cam Recorder</title>
+	<style>
+		body { font-family: sans-serif; margin: 20px; }
+		#video-player { width: 100%; max-width: 800px; }
+		.container { display: flex; gap: 20px; }
+		.col { flex: 1; }
+		ul { list-style-type: none; padding: 0; }
+		li { margin-bottom: 10px; padding: 10px; border: 1px solid #ccc; cursor: pointer; }
+		li:hover { background-color: #f0f0f0; }
+	</style>
+	<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+	<h1>Tapo C200 Cam Recorder</h1>
+	<div class="container">
+		<div class="col">
+			<h2>Live Feed</h2>
+			<video id="live-video" autoplay muted playsinline style="width:100%; max-width:800px; background-color:black; aspect-ratio:16/9;"></video>
+			<h2>System Stats</h2>
+			<div id="stats">Loading...</div>
+		</div>
+		<div class="col">
+			<h2>Recordings</h2>
+			<div id="recordings">Loading...</div>
+			
+			<div id="playback-section" style="display:none; margin-top:20px;">
+				<h3>Playback</h3>
+				<video id="playback-video" controls style="width:100%;"></video>
+				<br>
+				<a id="download-btn" href="#" download><button>Download Video</button></a>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		setInterval(() => fetch('/api/keepalive'), 5000);
+		fetch('/api/keepalive').then(() => {
+			setTimeout(() => {
+				const video = document.getElementById('live-video');
+				const videoSrc = '/hls/stream.m3u8';
+				if (Hls.isSupported()) {
+					const hls = new Hls();
+					hls.loadSource(videoSrc);
+					hls.attachMedia(video);
+					hls.on(Hls.Events.MANIFEST_PARSED, function() {
+						video.play().catch(() => {});
+					});
+				} else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+					video.src = videoSrc;
+					video.addEventListener('loadedmetadata', function() {
+						video.play().catch(() => {});
+					});
+				}
+			}, 3000);
+		});
+
+		function updateStats() {
+			fetch('/api/stats').then(r => r.json()).then(data => {
+				document.getElementById('stats').innerHTML = 
+					'<p>Uptime: ' + data.uptime + '</p>' +
+					'<p>Free Disk: ' + data.free_disk_pct.toFixed(2) + '%</p>' +
+					'<p>RTSP URL: ' + data.rtsp_url + '</p>' +
+					'<p>Retention Days: ' + data.retention_days + '</p>' +
+					'<p>Space Used: ' + data.used_space_mb.toFixed(2) + ' MB</p>';
+			});
+		}
+		setInterval(updateStats, 10000);
+		updateStats();
+
+		function updateRecordings() {
+			fetch('/videos').then(r => r.json()).then(files => {
+				const list = document.getElementById('recordings');
+				list.innerHTML = '<ul>' + files.map(f => 
+					'<li onclick="playVideo(\'' + f.name + '\')">' + f.name + ' (' + f.size.toFixed(2) + ' MB)</li>'
+				).join('') + '</ul>';
+			});
+		}
+		updateRecordings();
+
+		function playVideo(filename) {
+			const sec = document.getElementById('playback-section');
+			const vid = document.getElementById('playback-video');
+			const btn = document.getElementById('download-btn');
+			
+			sec.style.display = 'block';
+			vid.src = '/download/' + filename;
+			btn.href = '/download/' + filename;
+			vid.play();
+		}
+	</script>
+</body>
+</html>
