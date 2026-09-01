@@ -14,7 +14,6 @@
 	<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
-	<h1>Tapo C200 Cam Recorder</h1>
 	<div class="container">
 		<div class="col">
 			<h2>Live Feed</h2>
@@ -24,14 +23,14 @@
 		</div>
 		<div class="col">
 			<h2>Recordings</h2>
-			<div id="recordings">Loading...</div>
-			
-			<div id="playback-section" style="display:none; margin-top:20px;">
+			<div id="playback-section" style="display:none; margin-bottom:20px;">
 				<h3>Playback</h3>
 				<video id="playback-video" controls style="width:100%;"></video>
 				<br>
 				<a id="download-btn" href="#" download><button>Download Video</button></a>
 			</div>
+			
+			<div id="recordings">Loading...</div>
 		</div>
 	</div>
 
@@ -42,7 +41,11 @@
 				const video = document.getElementById('live-video');
 				const videoSrc = '/hls/stream.m3u8';
 				if (Hls.isSupported()) {
-					const hls = new Hls();
+					const hls = new Hls({
+						liveSyncDurationCount: 2,
+						liveMaxLatencyDurationCount: 4,
+						maxLiveSyncPlaybackRate: 1.5,
+					});
 					hls.loadSource(videoSrc);
 					hls.attachMedia(video);
 					hls.on(Hls.Events.MANIFEST_PARSED, function() {
@@ -62,9 +65,8 @@
 				document.getElementById('stats').innerHTML = 
 					'<p>Uptime: ' + data.uptime + '</p>' +
 					'<p>Free Disk: ' + data.free_disk_pct.toFixed(2) + '%</p>' +
-					'<p>RTSP URL: ' + data.rtsp_url + '</p>' +
 					'<p>Retention Days: ' + data.retention_days + '</p>' +
-					'<p>Space Used: ' + data.used_space_mb.toFixed(2) + ' MB</p>';
+					'<p>Space Used: ' + data.used_space_gb.toFixed(2) + ' GB</p>';
 			});
 		}
 		setInterval(updateStats, 10000);

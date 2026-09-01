@@ -79,6 +79,8 @@ func recordContinuously() {
 			"-nostdin",
 			"-hwaccel", "vaapi",
 			"-hwaccel_device", config.HWAccelDevice,
+			"-use_wallclock_as_timestamps", "1",
+			"-fflags", "+genpts",
 			"-rtsp_transport", "tcp",
 			"-i", config.RTSPURL,
 			"-c:v", "copy",
@@ -281,14 +283,17 @@ func handleKeepalive(w http.ResponseWriter, r *http.Request) {
 			"-hwaccel", "vaapi",
 			"-hwaccel_device", config.HWAccelDevice,
 			"-hwaccel_output_format", "vaapi",
+			"-use_wallclock_as_timestamps", "1",
+			"-fflags", "+genpts",
 			"-rtsp_transport", "tcp",
 			"-i", hlsRTSP,
 			"-c:v", "h264_vaapi",
+			"-g", "15",
 			"-b:v", "2M",
 			"-c:a", "aac",
 			"-f", "hls",
-			"-hls_time", "4",
-			"-hls_list_size", "5",
+			"-hls_time", "1",
+			"-hls_list_size", "3",
 			"-hls_flags", "delete_segments",
 			hlsPath,
 		)
@@ -367,7 +372,7 @@ func handleVideos(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(list)
 }
 
-func getUsedSpaceMB(path string) float64 {
+func getUsedSpaceGB(path string) float64 {
 	var size int64
 	files, err := os.ReadDir(path)
 	if err != nil {
@@ -382,16 +387,15 @@ func getUsedSpaceMB(path string) float64 {
 			size += info.Size()
 		}
 	}
-	return float64(size) / 1024 / 1024
+	return float64(size) / 1024 / 1024 / 1024
 }
 
 func handleStats(w http.ResponseWriter, r *http.Request) {
 	stats := map[string]interface{}{
-		"uptime":         time.Since(startTime).String(),
+		"uptime":         time.Since(startTime).Round(time.Second).String(),
 		"free_disk_pct":  getFreeDiskPct(config.OutputDir),
-		"rtsp_url":       config.RTSPURL,
 		"retention_days": config.RetentionDays,
-		"used_space_mb":  getUsedSpaceMB(config.OutputDir),
+		"used_space_gb":  getUsedSpaceGB(config.OutputDir),
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)
