@@ -1,1 +1,3 @@
 cam-recorder
+cam-recorder.initd
+cam-recorder-install.sh

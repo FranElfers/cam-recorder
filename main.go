@@ -2,17 +2,28 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 )
+
+var credRegex = regexp.MustCompile(`://[^@/]+@`)
+
+func sanitizeLog(s string) string {
+	return credRegex.ReplaceAllString(s, "://***:***@")
+}
 
 type Config struct {
 	RTSPURL         string  `json:"rtsp_url"`
@@ -26,9 +37,53 @@ type Config struct {
 	HWAccelDevice   string  `json:"hwaccel_device"`
 }
 
+type LogBuffer struct {
+	mu    sync.Mutex
+	lines []string
+	limit int
+}
+
+func newLogBuffer(limit int) *LogBuffer {
+	return &LogBuffer{limit: limit}
+}
+
+func (lb *LogBuffer) Write(p []byte) (n int, err error) {
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
+	clean := strings.ReplaceAll(string(p), "\r\n", "\n")
+	clean = strings.ReplaceAll(clean, "\r", "\n")
+	for _, l := range strings.Split(clean, "\n") {
+		l = strings.TrimSpace(l)
+		if l != "" {
+			if len(lb.lines) >= lb.limit {
+				lb.lines = lb.lines[1:]
+			}
+			lb.lines = append(lb.lines, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), sanitizeLog(l)))
+		}
+	}
+	return len(p), nil
+}
+
+func (lb *LogBuffer) GetLines() []string {
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
+	res := make([]string, len(lb.lines))
+	copy(res, lb.lines)
+	return res
+}
+
 var (
 	config    Config
 	startTime time.Time
+
+	recMu           sync.Mutex
+	recCmd          *exec.Cmd
+	recRunning      bool
+	recStartTime    time.Time
+	recLastExitTime time.Time
+	recLastExitErr  string
+	recRestartCount int
+	recLogs         = newLogBuffer(50)
 
 	hlsMu      sync.Mutex
 	hlsCmd     *exec.Cmd
@@ -56,6 +111,8 @@ func main() {
 	http.HandleFunc("/hls/", handleHLS)
 	http.HandleFunc("/api/keepalive", handleKeepalive)
 	http.HandleFunc("/api/stats", handleStats)
+	http.HandleFunc("/api/diagnostics", handleDiagnostics)
+	http.HandleFunc("/api/recording/restart", handleRestartRecording)
 	http.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(config.OutputDir))))
 
 	log.Printf("Server listening on port %s", config.Port)
@@ -74,11 +131,18 @@ func loadConfig(path string) error {
 func recordContinuously() {
 	for {
 		log.Println("Starting recording...")
-		// Saving to MP4 directly.
+		recMu.Lock()
+		recRestartCount++
+		recStartTime = time.Now()
+		recRunning = true
+		recLastExitErr = ""
+		recLogs.Write([]byte("Starting ffmpeg recording process..."))
+
 		cmd := exec.Command("ffmpeg",
 			"-nostdin",
 			"-hwaccel", "vaapi",
 			"-hwaccel_device", config.HWAccelDevice,
+			"-timeout", "10000000",
 			"-use_wallclock_as_timestamps", "1",
 			"-fflags", "+genpts",
 			"-rtsp_transport", "tcp",
@@ -93,10 +157,26 @@ func recordContinuously() {
 		)
 
 		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		cmd.Stderr = io.MultiWriter(os.Stderr, recLogs)
+		recCmd = cmd
+		recMu.Unlock()
 
 		err := cmd.Run()
-		log.Printf("Recording process ended: %v", err)
+
+		recMu.Lock()
+		recRunning = false
+		recLastExitTime = time.Now()
+		if err != nil {
+			recLastExitErr = err.Error()
+			log.Printf("Recording process ended: %v", err)
+			recLogs.Write([]byte(fmt.Sprintf("Recording process ended with error: %v", err)))
+		} else {
+			log.Println("Recording process ended normally")
+			recLogs.Write([]byte("Recording process ended normally"))
+		}
+		recCmd = nil
+		recMu.Unlock()
+
 		time.Sleep(5 * time.Second) // Wait before restarting
 	}
 }
@@ -283,6 +363,7 @@ func handleKeepalive(w http.ResponseWriter, r *http.Request) {
 			"-hwaccel", "vaapi",
 			"-hwaccel_device", config.HWAccelDevice,
 			"-hwaccel_output_format", "vaapi",
+			"-timeout", "10000000",
 			"-use_wallclock_as_timestamps", "1",
 			"-fflags", "+genpts",
 			"-rtsp_transport", "tcp",
@@ -399,4 +480,83 @@ func handleStats(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)
+}
+
+func checkCameraConnectivity(rtspURL string) (target string, reachable bool, errMsg string) {
+	u, err := url.Parse(rtspURL)
+	if err != nil {
+		return "invalid url", false, err.Error()
+	}
+	host := u.Hostname()
+	port := u.Port()
+	if port == "" {
+		port = "554"
+	}
+	target = net.JoinHostPort(host, port)
+	conn, err := net.DialTimeout("tcp", target, 2*time.Second)
+	if err != nil {
+		return target, false, err.Error()
+	}
+	conn.Close()
+	return target, true, ""
+}
+
+func handleDiagnostics(w http.ResponseWriter, r *http.Request) {
+	targetHost, camReachable, camErr := checkCameraConnectivity(config.RTSPURL)
+
+	recMu.Lock()
+	recUptime := "0s"
+	recPid := 0
+	if recRunning && recCmd != nil && recCmd.Process != nil {
+		recPid = recCmd.Process.Pid
+		recUptime = time.Since(recStartTime).Round(time.Second).String()
+	}
+	recStatus := map[string]interface{}{
+		"running":         recRunning,
+		"pid":             recPid,
+		"uptime":          recUptime,
+		"restart_count":   recRestartCount,
+		"last_start":      recStartTime.Format("2006-01-02 15:04:05"),
+		"last_exit_time":  recLastExitTime.Format("2006-01-02 15:04:05"),
+		"last_exit_error": recLastExitErr,
+		"recent_logs":     recLogs.GetLines(),
+	}
+	recMu.Unlock()
+
+	data := map[string]interface{}{
+		"uptime":       time.Since(startTime).Round(time.Second).String(),
+		"current_time": time.Now().Format("2006-01-02 15:04:05"),
+		"camera": map[string]interface{}{
+			"target":    targetHost,
+			"reachable": camReachable,
+			"error":     camErr,
+		},
+		"recording": recStatus,
+		"storage": map[string]interface{}{
+			"output_dir":    config.OutputDir,
+			"free_disk_pct": getFreeDiskPct(config.OutputDir),
+			"used_space_gb": getUsedSpaceGB(config.OutputDir),
+		},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(data)
+}
+
+func handleRestartRecording(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	recMu.Lock()
+	defer recMu.Unlock()
+
+	if recCmd != nil && recCmd.Process != nil {
+		log.Println("Manual restart requested from web UI")
+		recLogs.Write([]byte("--- Manual restart requested from Web UI ---"))
+		_ = recCmd.Process.Kill()
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"ok","message":"Recording process restarting"}`))
 }
