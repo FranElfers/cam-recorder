@@ -2,6 +2,8 @@
 
 Cam Recorder is a software tool to record video from a Tapo C200 camera. It runs as an OpenRC service on Alpine Linux.
 
+![preview](docs/cam-recorder.jpg)
+
 ## System requirements
 
 You must have these items to operate this software:
@@ -13,9 +15,15 @@ You must have these items to operate this software:
 
 ## Installation
 
-Do these steps to install the software:
+First clone this repo:
 
-1. Build the installer package.
+```shell
+git clone https://github.com/franelfers/cam-recorder
+```
+
+### Option 1: Install and run as an OpenRC system service
+
+1. Build the installer package:
    ```shell
    make installer
    ```
@@ -23,10 +31,28 @@ Do these steps to install the software:
    ```shell
    sudo ./cam-recorder-install.sh
    ```
+3. To start or stop the service later:
+   ```shell
+   sudo rc-service cam-recorder start
+   sudo rc-service cam-recorder stop
+   ```
+4. Open a web browser and visit `http://<server-ip>:8080/`.
+
+### Option 2: Run directly without installation
+
+1. Build the binary:
+   ```shell
+   make build
+   ```
+2. Run the executable from the project directory:
+   ```shell
+   ./cam-recorder
+   ```
+3. Open a web browser and visit `http://localhost:8080/` (or use the configured IP address and port).
 
 ## Configuration
 
-You can change the software settings in the `config.json` file. The file has these parameters:
+You can change the software settings in `./config.json` or `/etc/cam-recorder/config.json`:
 
 - **`rtsp_url`**: The URL of the camera RTSP stream.
 - **`output_dir`**: The directory to save the MP4 video files.
@@ -38,21 +64,7 @@ You can change the software settings in the `config.json` file. The file has the
 - **`port`**: The network port for the web interface.
 - **`hwaccel_device`**: The device path for hardware acceleration (for example, `/dev/dri/renderD128`).
 
-## Operation
-
-Do these steps to operate the service:
-
-1. Start the service.
-   ```shell
-   sudo rc-service cam-recorder start
-   ```
-2. Open a web browser.
-3. Go to the web interface. Use the IP address of the server and the port from the configuration file.
-   `http://<server-ip>:8080/`
-
 ## Web interface features
-
-The web interface lets you do these tasks:
 
 - **Watch live video**: Transcodes the RTSP stream to HLS on demand when you view the page.
 - **Diagnose issues**: Shows real-time status of the RTSP camera connection, the FFmpeg recording process, disk space, and server uptime.
@@ -61,9 +73,15 @@ The web interface lets you do these tasks:
 - **Play recordings**: Select and watch recorded MP4 files in the browser.
 - **Download recordings**: Download recorded files to your computer.
 
-## API endpoints
+## Maintenance tasks
 
-The web server provides these HTTP endpoints:
+The software does these tasks automatically every hour:
+
+- It compresses old video files to use less disk space.
+- It deletes video files that are older than the retention limit.
+- It deletes the oldest video files if the free disk space is too low.
+
+## API endpoints
 
 - `GET /`: The main web page.
 - `GET /videos`: JSON list of recorded MP4 files.
@@ -76,8 +94,6 @@ The web server provides these HTTP endpoints:
 
 ## Service logs
 
-You can look at the service logs to troubleshoot problems. The system saves the logs in these files:
-
 - Standard messages: `/var/log/cam-recorder.log`
 - Error messages: `/var/log/cam-recorder.err`
 
@@ -86,11 +102,3 @@ To see live error messages, use this command:
 ```shell
 tail -f /var/log/cam-recorder.err
 ```
-
-## Maintenance tasks
-
-The software does these tasks automatically every hour:
-
-- It compresses old video files to use less disk space.
-- It deletes video files that are older than the retention limit.
-- It deletes the oldest video files if the free disk space is too low.
