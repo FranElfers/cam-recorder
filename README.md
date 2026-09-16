@@ -13,30 +13,13 @@ You must have these items to operate this software:
 
 ## Installation
 
-You can install the software with `make` or with the self-contained installer script.
-
-### Method 1: Install from source code
-
-Do these steps to install from source code:
-
-1. Compile the software.
-   ```shell
-   make
-   ```
-2. Install the binary, configuration, and service files.
-   ```shell
-   sudo make install
-   ```
-
-### Method 2: Install with the installer script
-
-You can create a standalone installer script to deploy to another machine:
+Do these steps to install the software:
 
 1. Build the installer package.
    ```shell
    make installer
    ```
-2. Copy `cam-recorder-install.sh` to the target machine and run it as root:
+2. Run the generated installer script as root:
    ```shell
    sudo ./cam-recorder-install.sh
    ```

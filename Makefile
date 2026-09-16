@@ -1,19 +1,9 @@
-.PHONY: all build install clean uninstall installer
+.PHONY: all build clean uninstall installer
 
 all: build
 
 build:
 	CGO_ENABLED=0 go build -o cam-recorder main.go
-
-install: build
-	install -d /usr/local/bin
-	install -m 755 cam-recorder /usr/local/bin/
-	install -d /etc/cam-recorder
-	if [ ! -f /etc/cam-recorder/config.json ]; then install -m 644 config.json /etc/cam-recorder/; fi
-	install -m 644 index.html /etc/cam-recorder/
-	install -m 755 cam-recorder.initd /etc/init.d/cam-recorder
-	rc-update add cam-recorder default
-	rc-service cam-recorder restart || true
 
 uninstall:
 	rc-update del cam-recorder default
