@@ -446,7 +446,7 @@ func handleVideos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sort.Slice(list, func(i, j int) bool {
-		return list[i].Mod.After(list[j].Mod)
+		return list[i].Name > list[j].Name
 	})
 
 	w.Header().Set("Content-Type", "application/json")

@@ -448,6 +448,7 @@
 					container.innerHTML = '<p style="color:#64748b;">No hay grabaciones disponibles.</p>';
 					return;
 				}
+				files.sort((a, b) => b.name.localeCompare(a.name));
 				container.innerHTML = '<ul class="file-list">' + files.map(f => 
 					'<li onclick="playVideo(\'' + f.name + '\')">' +
 						'<span class="file-name">' + f.name + '</span>' +
