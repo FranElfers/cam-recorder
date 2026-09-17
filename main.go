@@ -61,6 +61,13 @@ func (lb *LogBuffer) Write(p []byte) (n int, err error) {
 		if strings.HasPrefix(l, "frame=") || (strings.Contains(l, "fps=") && strings.Contains(l, "time=")) {
 			continue
 		}
+		// Ignore harmless RTSP audio timestamp jitter warnings
+		if strings.Contains(l, "Queue input is backward in time") ||
+			strings.Contains(l, "Non-monotonic DTS") ||
+			strings.Contains(l, "incorrect timestamps in the output file") ||
+			strings.Contains(l, "Last message repeated") {
+			continue
+		}
 		if len(lb.lines) >= lb.limit {
 			lb.lines = lb.lines[1:]
 		}
@@ -147,7 +154,7 @@ func recordContinuously() {
 		cmd := exec.Command("ffmpeg",
 			"-nostdin",
 			"-hide_banner",
-			"-loglevel", "warning",
+			"-loglevel", "error",
 			"-nostats",
 			"-hwaccel", "vaapi",
 			"-hwaccel_device", config.HWAccelDevice,
@@ -376,7 +383,7 @@ func handleKeepalive(w http.ResponseWriter, r *http.Request) {
 		hlsCmd = exec.Command("ffmpeg",
 			"-nostdin",
 			"-hide_banner",
-			"-loglevel", "warning",
+			"-loglevel", "error",
 			"-nostats",
 			"-hwaccel", "vaapi",
 			"-hwaccel_device", config.HWAccelDevice,
