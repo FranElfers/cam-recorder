@@ -54,15 +54,17 @@ git clone https://github.com/franelfers/cam-recorder
 
 You can change the software settings in `./config.json` or `/etc/cam-recorder/config.json`:
 
-- **`rtsp_url`**: The URL of the camera RTSP stream.
-- **`output_dir`**: The directory to save the MP4 video files.
-- **`hls_output_dir`**: The directory to save the temporary HLS stream files.
-- **`disk_limit_pct`**: The minimum free disk space percentage. If the free space is less than this value, the software deletes the oldest video file.
-- **`video_duration`**: The length of each video file in seconds.
-- **`compression_days`**: The number of days before the software compresses a video file to the H.265 format.
-- **`retention_days`**: The number of days before the software deletes a video file.
-- **`port`**: The network port for the web interface.
-- **`hwaccel_device`**: The device path for hardware acceleration (for example, `/dev/dri/renderD128`).
+| Config             | Description                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `rtsp_url`         | URL of the camera RTSP stream                                                                                             |
+| `output_dir`       | Directory to save the MP4 video files                                                                                     |
+| `hls_output_dir`   | Directory to save the temporary HLS stream files                                                                          |
+| `disk_limit_pct`   | Minimum free disk space percentage. If the free space is less than this value, the software deletes the oldest video file |
+| `video_duration`   | Length of each video file in seconds                                                                                      |
+| `compression_days` | Number of days before the software compresses a video file to the H.265 format                                            |
+| `retention_days`   | Number of days before the software deletes a video file                                                                   |
+| `port`             | Network port for the web interface                                                                                        |
+| `hwaccel_device`   | Device path for hardware acceleration (for example, `/dev/dri/renderD128`)                                                |
 
 ## Web interface features
 

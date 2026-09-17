@@ -409,7 +409,7 @@
 					const lower = line.toLowerCase();
 					if (lower.includes('error') || lower.includes('failed') || lower.includes('refused') || lower.includes('timeout') || lower.includes('unreachable') || lower.includes('no route')) {
 						return '<span class="log-err">' + escapeHtml(line) + '</span>';
-					} else if (lower.includes('warn') || lower.includes('restart')) {
+					} else if (lower.includes('warn') || lower.includes('restart') || lower.includes('ended')) {
 						return '<span class="log-warn">' + escapeHtml(line) + '</span>';
 					}
 					return escapeHtml(line);

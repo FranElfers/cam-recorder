@@ -54,12 +54,17 @@ func (lb *LogBuffer) Write(p []byte) (n int, err error) {
 	clean = strings.ReplaceAll(clean, "\r", "\n")
 	for _, l := range strings.Split(clean, "\n") {
 		l = strings.TrimSpace(l)
-		if l != "" {
-			if len(lb.lines) >= lb.limit {
-				lb.lines = lb.lines[1:]
-			}
-			lb.lines = append(lb.lines, fmt.Sprintf("[%s] %s", time.Now().Format("15:04:05"), sanitizeLog(l)))
+		if l == "" {
+			continue
 		}
+		// Ignore periodic progress stats (frame=, fps=, etc.)
+		if strings.HasPrefix(l, "frame=") || (strings.Contains(l, "fps=") && strings.Contains(l, "time=")) {
+			continue
+		}
+		if len(lb.lines) >= lb.limit {
+			lb.lines = lb.lines[1:]
+		}
+		lb.lines = append(lb.lines, fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), sanitizeLog(l)))
 	}
 	return len(p), nil
 }
@@ -83,7 +88,7 @@ var (
 	recLastExitTime time.Time
 	recLastExitErr  string
 	recRestartCount int
-	recLogs         = newLogBuffer(50)
+	recLogs         = newLogBuffer(500)
 
 	hlsMu      sync.Mutex
 	hlsCmd     *exec.Cmd
@@ -130,16 +135,20 @@ func loadConfig(path string) error {
 
 func recordContinuously() {
 	for {
-		log.Println("Starting recording...")
 		recMu.Lock()
 		recRestartCount++
 		recStartTime = time.Now()
 		recRunning = true
 		recLastExitErr = ""
-		recLogs.Write([]byte("Starting ffmpeg recording process..."))
+		startMsg := fmt.Sprintf("Starting recording process (attempt #%d)...", recRestartCount)
+		log.Println(startMsg)
+		recLogs.Write([]byte(startMsg))
 
 		cmd := exec.Command("ffmpeg",
 			"-nostdin",
+			"-hide_banner",
+			"-loglevel", "warning",
+			"-nostats",
 			"-hwaccel", "vaapi",
 			"-hwaccel_device", config.HWAccelDevice,
 			"-timeout", "10000000",
@@ -166,13 +175,16 @@ func recordContinuously() {
 		recMu.Lock()
 		recRunning = false
 		recLastExitTime = time.Now()
+		duration := time.Since(recStartTime).Round(time.Second)
 		if err != nil {
 			recLastExitErr = err.Error()
-			log.Printf("Recording process ended: %v", err)
-			recLogs.Write([]byte(fmt.Sprintf("Recording process ended with error: %v", err)))
+			errMsg := fmt.Sprintf("Recording ended after %v with error: %v", duration, err)
+			log.Println(errMsg)
+			recLogs.Write([]byte(errMsg))
 		} else {
-			log.Println("Recording process ended normally")
-			recLogs.Write([]byte("Recording process ended normally"))
+			okMsg := fmt.Sprintf("Recording ended normally after %v", duration)
+			log.Println(okMsg)
+			recLogs.Write([]byte(okMsg))
 		}
 		recCmd = nil
 		recMu.Unlock()
@@ -216,6 +228,9 @@ func compressOldFiles() {
 
 			log.Printf("Compressing %s to H.265 using VA-API...", f.Name())
 			cmd := exec.Command("ffmpeg",
+				"-hide_banner",
+				"-loglevel", "error",
+				"-nostats",
 				"-hwaccel", "vaapi",
 				"-hwaccel_device", config.HWAccelDevice,
 				"-hwaccel_output_format", "vaapi",
@@ -360,6 +375,9 @@ func handleKeepalive(w http.ResponseWriter, r *http.Request) {
 
 		hlsCmd = exec.Command("ffmpeg",
 			"-nostdin",
+			"-hide_banner",
+			"-loglevel", "warning",
+			"-nostats",
 			"-hwaccel", "vaapi",
 			"-hwaccel_device", config.HWAccelDevice,
 			"-hwaccel_output_format", "vaapi",
