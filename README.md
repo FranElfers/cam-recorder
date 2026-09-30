@@ -10,6 +10,7 @@ You must have these items to operate this software:
 
 - Alpine Linux v3.24 x86_64.
 - An AMD GPU with VA-API support (for example, AMD Lucienne).
+- The VA-API driver for AMD GPUs (`mesa-va-gallium`).
 - Go (to compile the software).
 - FFmpeg (to record and to transcode video).
 

@@ -174,6 +174,7 @@ func recordContinuously() {
 			filepath.Join(config.OutputDir, "cam-%Y%m%d-%H%M%S.mp4"),
 		)
 
+		cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL} // no orphan ffmpeg if we die
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = io.MultiWriter(os.Stderr, recLogs)
 		recCmd = cmd
@@ -406,6 +407,7 @@ func handleKeepalive(w http.ResponseWriter, r *http.Request) {
 			hlsPath,
 		)
 
+		hlsCmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 		hlsCmd.Stdout = os.Stdout
 		hlsCmd.Stderr = os.Stderr
 
