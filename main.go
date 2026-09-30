@@ -106,9 +106,10 @@ var (
 func main() {
 	startTime = time.Now()
 
-	err := loadConfig("config.json")
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+	dir, _ := os.UserConfigDir()
+	path := filepath.Join(dir, "cam-recorder", "config.json")
+	if err := loadConfig(path); err != nil {
+		log.Fatalf("Failed to load config %s: %v", path, err)
 	}
 
 	os.MkdirAll(config.OutputDir, 0755)

@@ -21,22 +21,28 @@ First clone this repo:
 git clone https://github.com/franelfers/cam-recorder
 ```
 
-### Option 1: Install and run as an OpenRC system service
+### Option 1: Install for your user (no root)
 
 1. Build the installer package:
    ```shell
    make installer
    ```
-2. Run the generated installer script as root:
+2. Run the generated installer script as your normal user (not with `sudo`):
    ```shell
-   sudo ./cam-recorder-install.sh
+   ./cam-recorder-install.sh
    ```
-3. To start or stop the service later:
+   It installs the binary in `~/.local/bin`, the web page and recordings in `~/.local/share/cam-recorder`, and the configuration in `~/.config/cam-recorder`. Then it asks if you want to enable the OpenRC service at boot. Only that step asks for your `sudo` password, because it writes `/etc/init.d/cam-recorder`. The service runs as your user and reads your configuration. Your user must be in the `video` group to use hardware acceleration.
+3. Edit `~/.config/cam-recorder/config.json` (no `sudo` needed), then start or restart the service (`sudo` needed):
    ```shell
    sudo rc-service cam-recorder start
-   sudo rc-service cam-recorder stop
+   sudo rc-service cam-recorder restart
    ```
-4. Open a web browser and visit `http://<server-ip>:8080/`.
+   Without the service, run `cd ~/.local/share/cam-recorder && ~/.local/bin/cam-recorder` directly.
+4. To remove the installation, run the uninstaller that `make installer` also generates. It asks if you want to stop and disable the service (`sudo` needed). The configuration and recordings are kept:
+   ```shell
+   ./cam-recorder-uninstall.sh
+   ```
+5. Open a web browser and visit `http://<server-ip>:8080/`.
 
 ### Option 2: Run directly without installation
 
@@ -52,7 +58,11 @@ git clone https://github.com/franelfers/cam-recorder
 
 ## Configuration
 
-You can change the software settings in `./config.json` or `/etc/cam-recorder/config.json`:
+The software reads its settings from `~/.config/cam-recorder/config.json` (or `$XDG_CONFIG_HOME/cam-recorder/config.json`). Copy the `config.json` from this repository as a starting point:
+
+```shell
+mkdir -p ~/.config/cam-recorder && cp config.json ~/.config/cam-recorder/
+```
 
 | Config             | Description                                                                                                               |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
