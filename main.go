@@ -168,9 +168,10 @@ func recordContinuously() {
 			"-c:a", "aac",
 			"-f", "segment",
 			"-segment_time", config.VideoDuration,
+			"-segment_atclocktime", "1",
 			"-reset_timestamps", "1",
 			"-strftime", "1",
-			filepath.Join(config.OutputDir, "cam-%Y%m%d-%H%M.mp4"),
+			filepath.Join(config.OutputDir, "cam-%Y%m%d-%H%M%S.mp4"),
 		)
 
 		cmd.Stdout = os.Stdout

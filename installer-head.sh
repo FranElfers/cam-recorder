@@ -29,7 +29,7 @@ echo "Installation complete."
 command -v ffmpeg >/dev/null || echo "WARNING: ffmpeg not found. Install it with: sudo apk add ffmpeg"
 echo "Edit $CONF_DIR/config.json before starting."
 
-printf "Enable the OpenRC service (start at boot; asks for your sudo password)? [y/N] "
+printf "Enable OpenRC service? [y/N] "
 read -r ANSWER || true
 case "$ANSWER" in y|Y|yes|YES)
 	# The service runs as this user and reads this user's configuration.
@@ -57,7 +57,7 @@ SERVICE
 	sudo rc-update add cam-recorder default
 	echo "Service enabled. Manage it with:"
 	echo "  sudo rc-service cam-recorder start|stop|restart|status"
-	printf "Start the service now? Make sure config.json is edited first. [y/N] "
+	printf "Start service now? Make sure config.json is edited first. [y/N] "
 	read -r ANSWER || true
 	case "$ANSWER" in y|Y|yes|YES) sudo rc-service cam-recorder restart ;; esac
 	;;
